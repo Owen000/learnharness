@@ -50,6 +50,7 @@ function withPayload(test: (fixture: {
 		// curation, not the TypeScript compiler or the full application sources.
 		write(path.join("scripts", "build-plugin-types.mjs"), `import fs from 'node:fs'; import path from 'node:path'; fs.mkdirSync(process.argv[2], {recursive:true}); fs.writeFileSync(path.join(process.argv[2], 'index.d.ts'), 'export interface Example {}'); fs.writeFileSync(path.join(process.argv[2], 'package.json'), JSON.stringify({version:'1.0.0'}));`);
 		write(path.join("public", "plugin-loader.js"), "export {};\n");
+		write(path.join("public", "demo-bridge.js"), "(function(){})();\n");
 		for (const file of AUTHORING_DOCS) {
 			write(path.join("docs", file), fs.readFileSync(new URL(`../docs/${file}`, import.meta.url), "utf8"));
 		}

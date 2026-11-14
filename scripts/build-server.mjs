@@ -104,6 +104,7 @@ for (const extra of ["plugins", "dist", path.join("node_modules", "electron")]) 
 for (const asset of [
 	path.join("scripts", "plugin-loader.cjs"),
 	path.join("public", "plugin-loader.js"),
+	path.join("public", "demo-bridge.js"),
 	path.join("src", "agent", "system-prompt.md"),
 	path.join("src", "agent", "prompts", "teacher", "20-teaching.md"),
 	path.join("src", "agent", "prompts", "side-chat", "00-base.md"),
