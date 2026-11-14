@@ -36,7 +36,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { PATHS } from "../config.ts";
 import {
 	buildDemoSrcDoc,
-	DEMO_BRIDGE_SCRIPT,
 	DemoCard,
 	DemoErrorChip,
 	INITIAL_DEMO_BRIDGE_STATE,
@@ -60,6 +59,8 @@ import type { JobRecord } from "../src/core/contracts.ts";
 import { createTeacherTools } from "../src/agent/tools.ts";
 import { chatStore } from "../src/store/chats.ts";
 import { jobStore } from "../src/store/jobs.ts";
+
+const BRIDGE_SOURCE = fs.readFileSync(new URL("../public/demo-bridge.js", import.meta.url), "utf8");
 import { handleChatRequest } from "../src/server/chat-handler.ts";
 import { runningTurn } from "../src/server/turn-runs.ts";
 import { createTeacherAgent } from "../src/agent/teacher-agent.ts";
@@ -202,20 +203,17 @@ function noChromeHeadless(): HeadlessApi {
 // ─── 1. bridge injection + reducer ───────────────────────────────────────────
 
 describe("demo bridge", () => {
-	it("injects the resize + error hooks before </body>", () => {
+	it("injects the bridge <script src> before </body>", () => {
 		const srcDoc = buildDemoSrcDoc("<!doctype html><html><body><canvas id=\"c\"></canvas></body></html>");
-		assert.match(srcDoc, /demo-resize/);
-		assert.match(srcDoc, /demo-error/);
-		assert.match(srcDoc, /ResizeObserver/);
-		assert.match(srcDoc, /window\.addEventListener\("error"/);
+		assert.match(srcDoc, /<script src="\/demo-bridge\.js"><\/script>/);
 		// the bridge lands inside the document, and the original content survives
-		assert.ok(srcDoc.indexOf("ResizeObserver") < srcDoc.indexOf("</body>"));
+		assert.ok(srcDoc.indexOf("demo-bridge.js") < srcDoc.indexOf("</body>"));
 		assert.match(srcDoc, /<canvas id="c">/);
 	});
 
 	it("appends the bridge when the document has no </body>", () => {
 		const srcDoc = buildDemoSrcDoc("<div>fragment demo</div>");
-		assert.match(srcDoc, /demo-resize/);
+		assert.match(srcDoc, /<script src="\/demo-bridge\.js"><\/script>/);
 		assert.ok(srcDoc.endsWith("</script>"));
 		assert.match(srcDoc, /fragment demo/);
 	});
@@ -361,8 +359,7 @@ describe("steer card rendering (the delivered artifact)", () => {
 		const html = renderToStaticMarkup(<SubagentSteerCard message={projectNative([steer])[0] as never} />);
 		assert.match(html, /sandbox="allow-scripts"/);
 		assert.ok(!html.includes("allow-same-origin"), "never allow-same-origin");
-		assert.match(html, /demo-resize/);
-		assert.match(html, /demo-error/);
+		assert.match(html, /&lt;script src=&quot;\/demo-bridge\.js&quot;&gt;/);
 		assert.match(html, /Damped oscillator/);
 		assert.match(html, /interactive demo/i);
 		// the model-facing protocol text never renders for the learner
@@ -560,13 +557,13 @@ describe("artifact chrome — scrollbar, invert toggles, downloads (release poli
 });
 
 describe("bridge height: the body-based measure (ratchet fix, 2026-10-07)", () => {
-	it("DEMO_BRIDGE_SCRIPT measures the BODY (scrollHeight + rect + margins), not the viewport-clamped documentElement", () => {
+	it("the bridge measures the BODY (scrollHeight + rect + margins), not the viewport-clamped documentElement", () => {
 		// documentElement.scrollHeight = max(content, viewport) latches at
 		// the parent's own height — a demo could grow but never shrink on
 		// window resize (owner-reported). The body metrics are pure content.
-		assert.ok(DEMO_BRIDGE_SCRIPT.includes("Math.max(b.scrollHeight,b.getBoundingClientRect().height)"));
-		assert.ok(DEMO_BRIDGE_SCRIPT.includes("getComputedStyle(b)"));
-		assert.ok(!/post=function\(\)\{send\(\{type:"demo-resize",height:document\.documentElement\.scrollHeight\}\)\};/.test(DEMO_BRIDGE_SCRIPT));
+		assert.ok(BRIDGE_SOURCE.includes("Math.max(b.scrollHeight,b.getBoundingClientRect().height)"));
+		assert.ok(BRIDGE_SOURCE.includes("getComputedStyle(b)"));
+		assert.ok(!/post=function\(\)\{send\(\{type:"demo-resize",height:document\.documentElement\.scrollHeight\}\)\};/.test(BRIDGE_SOURCE));
 	});
 });
 
@@ -585,7 +582,7 @@ function bridgeHarness(initialBody: (innerHeight: number) => number) {
 		get scrollHeight() { return bodyHeight(win.innerHeight); },
 		getBoundingClientRect: () => ({ height: bodyHeight(win.innerHeight) }),
 	};
-	vm.runInNewContext(DEMO_BRIDGE_SCRIPT.replace(/^<script>|<\/script>$/g, ""), {
+	vm.runInNewContext(BRIDGE_SOURCE, {
 		window: win,
 		document: { body, documentElement: {} },
 		parent: { postMessage: (m: { type: string; height: number }) => { if (m.type === "demo-resize") posted.push(m.height); } },
